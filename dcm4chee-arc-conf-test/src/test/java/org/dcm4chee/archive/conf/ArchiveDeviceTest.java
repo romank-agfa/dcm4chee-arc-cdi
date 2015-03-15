@@ -41,13 +41,20 @@ package org.dcm4chee.archive.conf;
 import static org.junit.Assert.assertTrue;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import org.dcm4che3.conf.api.AttributeCoercions;
 import org.dcm4che3.conf.api.ConfigurationNotFoundException;
+import org.dcm4che3.conf.core.ConfigurationManager;
+import org.dcm4che3.conf.core.normalization.OLockHashCalcFilter;
+import org.dcm4che3.conf.core.util.ConfigNodeUtil;
+import org.dcm4che3.conf.dicom.CommonDicomConfiguration;
 import org.dcm4che3.conf.dicom.CommonDicomConfigurationWithHL7;
 import org.dcm4che3.conf.dicom.DicomConfigurationBuilder;
+import org.dcm4che3.conf.dicom.util.DicomNodeTraverser;
 import org.dcm4che3.imageio.codec.CompressionRules;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.Connection.Protocol;
@@ -58,7 +65,10 @@ import org.dcm4che3.net.imageio.ImageReaderExtension;
 import org.dcm4che3.net.imageio.ImageWriterExtension;
 import org.dcm4che3.util.ResourceLocator;
 import org.dcm4chee.archive.conf.DeepEquals.CustomDeepEquals;
+import org.dcm4chee.storage.conf.Availability;
 import org.dcm4chee.storage.conf.StorageDeviceExtension;
+import org.dcm4chee.storage.conf.StorageSystem;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -171,6 +181,69 @@ public class ArchiveDeviceTest extends DeviceMocker {
         res = DeepEquals.deepEquals(anotherArc, arcLoaded);
 
         assertTrue("Reconfigure", res);
+
+    }
+
+    @Test
+    public void oLock() throws Exception {
+        Device arrDevice = createARRDevice("syslog", Protocol.SYSLOG_UDP, 514);
+        Device arc = createArchiveDevice("dcm4chee-arc", arrDevice);
+
+
+        OLockHashCalcFilter opFilter = new OLockHashCalcFilter();
+
+        ArrayList<Class<?>> allExtensionClasses = new ArrayList<Class<?>>();
+        allExtensionClasses.add(StorageDeviceExtension.class);
+        DicomNodeTraverser dicomNodeTraverser = new DicomNodeTraverser(allExtensionClasses);
+
+
+
+
+        Map < String, Object > oldDeviceNode = ((CommonDicomConfiguration) config).createDeviceConfigNode(arc);
+        Map < String, Object > oldDeviceNode1 = ((CommonDicomConfiguration) config).createDeviceConfigNode(arc);
+
+        dicomNodeTraverser.traverseTree(oldDeviceNode, Device.class, opFilter);
+        dicomNodeTraverser.traverseTree(oldDeviceNode1, Device.class, opFilter);
+
+        // change stuff
+        arc.getConnections().get(0).setCommonName(arc.getConnections().get(0).getCommonName() + "!");
+
+        Map < String, Object > newDeviceNode = ((CommonDicomConfiguration) config).createDeviceConfigNode(arc);
+        dicomNodeTraverser.traverseTree(newDeviceNode, Device.class, opFilter);
+
+        // change storage
+        String next = arc.getDeviceExtension(StorageDeviceExtension.class).getStorageSystemGroupIDs().iterator().next();
+        StorageSystem storageSystem = new StorageSystem();
+        storageSystem.setAvailability(Availability.UNAVAILABLE);
+        storageSystem.setMinFreeSpace("15G");
+        storageSystem.setStorageSystemPath("/");
+        storageSystem.setStorageSystemID("theID");
+        arc.getDeviceExtension(StorageDeviceExtension.class).getStorageSystemGroup(next).addStorageSystem(storageSystem);
+
+        Map<String, Object> anotherNewDeviceNode = ((CommonDicomConfiguration) config).createDeviceConfigNode(arc);
+        dicomNodeTraverser.traverseTree(anotherNewDeviceNode, Device.class, opFilter);
+
+
+        Assert.assertNotEquals("device changed so hashes should differ",
+                oldDeviceNode.get("oLock"),
+                newDeviceNode.get("oLock")
+        );
+
+        Assert.assertEquals("unchanged's device hashes should not differ",
+                oldDeviceNode.get("oLock"),
+                oldDeviceNode1.get("oLock")
+        );
+
+        Assert.assertEquals("only storage changed - device hash should be the same",
+                newDeviceNode.get("oLock"),
+                anotherNewDeviceNode.get("oLock")
+        );
+
+                
+        Assert.assertNotEquals("storage changed - storage hash should change",
+                ConfigNodeUtil.getNode(newDeviceNode, "/deviceExtensions/StorageDeviceExtension/oLock"),
+                ConfigNodeUtil.getNode(anotherNewDeviceNode, "/deviceExtensions/StorageDeviceExtension/oLock")
+        );
 
     }
 
