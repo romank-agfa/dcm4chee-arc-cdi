@@ -3,6 +3,7 @@ package org.dcm4chee.archive.conf.olock;
 import org.dcm4che3.conf.core.api.ConfigurableClassExtension;
 import org.dcm4che3.conf.core.api.Configuration;
 import org.dcm4che3.conf.core.api.OptimisticLockException;
+import org.dcm4che3.conf.core.normalization.DefaultsAndNullFilterDecorator;
 import org.dcm4che3.conf.core.olock.OptimisticLockingConfiguration;
 import org.dcm4che3.conf.core.storage.InMemoryConfiguration;
 import org.dcm4che3.conf.core.util.Extensions;
@@ -12,6 +13,7 @@ import org.dcm4chee.archive.conf.ArchiveAEExtension;
 import org.dcm4chee.archive.conf.ArchiveDeviceTest;
 import org.dcm4chee.archive.conf.defaults.DefaultArchiveConfigurationFactory.FactoryParams;
 import org.dcm4chee.archive.conf.defaults.DefaultDicomConfigInitializer;
+import org.dcm4chee.archive.conf.defaults.test.DeepEquals;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,8 +21,6 @@ import org.junit.Test;
 import java.util.ArrayList;
 
 /**
- * Some close-to-reality tests for optimistic locking
- *
  * @author Roman K
  */
 public class DicomConfigOptimisticLockingTests {
@@ -41,6 +41,8 @@ public class DicomConfigOptimisticLockingTests {
         Configuration storage = new InMemoryConfiguration();
 
         storage = new OptimisticLockingConfiguration(storage, allExtensionClasses, storage);
+
+        storage = new DefaultsAndNullFilterDecorator(storage, allExtensionClasses);
 
         dicomConfig = new CommonDicomConfigurationWithHL7(
                 storage,
@@ -63,36 +65,70 @@ public class DicomConfigOptimisticLockingTests {
     }
 
 
-    /**
-     * if we have
-     */
     @Test
     public void testMultiDepthMerge() {
 
 
         Device device1 = dicomConfig.findDevice("dcm4chee-arc");
         Device device2 = dicomConfig.findDevice("dcm4chee-arc");
+        Device device3 = dicomConfig.findDevice("dcm4chee-arc");
+        Device device4 = dicomConfig.findDevice("dcm4chee-arc");
 
         // modify device and ae ext
         device1.setLimitOpenAssociations(10);
         device1.getApplicationEntity("DCM4CHEE").getAEExtension(ArchiveAEExtension.class).setModifyingSystem("asdgf");
 
+
         dicomConfig.merge(device1);
 
         // modify ae param
-        //device2.getApplicationEntity("DCM4CHEE").getConnections().remove(0);
-//        device2.getApplicationEntity("DCM4CHEE").setAeInstalled(false);
+        device2.getApplicationEntity("DCM4CHEE").getConnections().remove(0);
+        device2.getApplicationEntity("DCM4CHEE").setAeInstalled(false);
         dicomConfig.merge(device2);
 
 
-        // all 3 changes should make it
+        // none of conflicting should succeed
+        device3.setDescription("bla");
+        try {
+            dicomConfig.merge(device3);
+            Assert.fail("Should have failed");
+        } catch (OptimisticLockException e) {
+            //noop
+        }
+
+        device4.getApplicationEntity("DCM4CHEE").setDescription("blabla");
+        try {
+            dicomConfig.merge(device4);
+            Assert.fail("Should have failed");
+        } catch (OptimisticLockException e) {
+            //noop
+        }
+
+
+
+        // all 4 changes should make it
 
         Device loaded = dicomConfig.findDevice("dcm4chee-arc");
 
         Assert.assertEquals(10, loaded.getLimitOpenAssociations());
         Assert.assertEquals("asdgf", loaded.getApplicationEntity("DCM4CHEE").getAEExtension(ArchiveAEExtension.class).getModifyingSystem());
         Assert.assertEquals(1, device2.getApplicationEntity("DCM4CHEE").getConnections().size());
+        Assert.assertEquals(false, device2.getApplicationEntity("DCM4CHEE").getAeInstalled());
 
+
+        // make sure nothing else changed but what we changed and the hashes
+        device2.setLimitOpenAssociations(10);
+        device2.getApplicationEntity("DCM4CHEE").getAEExtension(ArchiveAEExtension.class).setModifyingSystem("asdgf");
+        device2.getApplicationEntity("DCM4CHEE").getAEExtension(ArchiveAEExtension.class).setOlockHash(
+                loaded.getApplicationEntity("DCM4CHEE").getAEExtension(ArchiveAEExtension.class).getOlockHash()
+        );
+        device2.getApplicationEntity("DCM4CHEE").setOlockHash(
+                loaded.getApplicationEntity("DCM4CHEE").getOlockHash()
+        );
+        device2.setOlockHash(loaded.getOlockHash());
+        boolean condition = DeepEquals.deepEquals(loaded, device2);
+        if (!condition) DeepEquals.printOutInequality();
+        Assert.assertTrue(condition);
     }
 
 
@@ -116,11 +152,14 @@ public class DicomConfigOptimisticLockingTests {
     }
 
 
+    // TODO play around with adding/removing extensions
+
     @Test
     public void testRandomScenarios() throws Exception {
 
         Device device = dicomConfig.findDevice("dcm4chee-arc");
         Device deviceCopy = dicomConfig.findDevice("dcm4chee-arc");
+        Device device3 = dicomConfig.findDevice("dcm4chee-arc");
 
         // change ae ref
         device.setDefaultAE(device.getApplicationEntity("DCM4CHEE_ADMIN"));
@@ -137,6 +176,8 @@ public class DicomConfigOptimisticLockingTests {
             //it correct
         }
 
+        // no changes
+        dicomConfig.merge(device3);
 
     }
 }

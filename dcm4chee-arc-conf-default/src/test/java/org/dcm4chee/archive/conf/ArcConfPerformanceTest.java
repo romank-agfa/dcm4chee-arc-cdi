@@ -2,7 +2,6 @@ package org.dcm4chee.archive.conf;
 
 import org.dcm4che3.conf.core.api.ConfigurableClassExtension;
 import org.dcm4che3.conf.core.api.Configuration;
-import org.dcm4che3.conf.core.olock.OptimisticLockingConfiguration;
 import org.dcm4che3.conf.core.storage.InMemoryConfiguration;
 import org.dcm4che3.conf.core.util.Extensions;
 import org.dcm4che3.conf.dicom.CommonDicomConfigurationWithHL7;
@@ -26,7 +25,7 @@ public class ArcConfPerformanceTest {
     private CommonDicomConfigurationWithHL7 dicomConfig;
 
     @Before
-    public void before(){
+    public void before() {
 
         // prepare storage
         ArrayList<Class> allExtensionClasses = new ArrayList<Class>();
@@ -36,7 +35,7 @@ public class ArcConfPerformanceTest {
 //        Configuration storage = new SingleJsonFileConfigurationStorage("target/config.json");
         Configuration storage = new InMemoryConfiguration();
 
-        storage = new OptimisticLockingConfiguration(storage, allExtensionClasses, storage);
+//        storage = new OptimisticLockingConfiguration(storage, allExtensionClasses, storage);
 
         dicomConfig = new CommonDicomConfigurationWithHL7(
                 storage,
@@ -47,7 +46,9 @@ public class ArcConfPerformanceTest {
         // wipe out clean
         dicomConfig.purgeConfiguration();
 
-    };
+    }
+
+    ;
 
     @Test
     public void manyDevices() {
@@ -56,24 +57,29 @@ public class ArcConfPerformanceTest {
         DefaultDicomConfigInitializer init = new DefaultDicomConfigInitializer();
         FactoryParams params = new FactoryParams();
         params.generateUUIDsBasedOnName = true;
-        params.useGroupBasedTCConfig = true;
+        params.useGroupBasedTCConfig = false;
 
         DefaultArchiveConfigurationFactory defaultArchiveConfigurationFactory = new DefaultArchiveConfigurationFactory(params);
         Device myArr = defaultArchiveConfigurationFactory.createARRDevice("myArr", Protocol.SYSLOG_UDP, 105);
         dicomConfig.persist(myArr);
 
-        for (int i=0; i<500; i++) {
-            dicomConfig.persist(defaultArchiveConfigurationFactory.createArchiveDevice("archive"+i,myArr));
+        for (int i = 0; i < 500; i++) {
+            dicomConfig.persist(defaultArchiveConfigurationFactory.createArchiveDevice("archive" + i, myArr));
         }
 
         System.out.println("persisted");
 
-        for (int i=0; i<10; i++) {
+        for (int i = 0; i < 10; i++) {
             System.out.println("querying");
             System.out.println(dicomConfig.listDeviceNames());
         }
 
+        for (int j = 0; j < 10; j++)
+            for (int i = 0; i < 500; i++) {
+                dicomConfig.findDevice("archive" + i);
+                System.out.println("device " + i + " loaded");
+            }
 
 
+        }
     }
-}

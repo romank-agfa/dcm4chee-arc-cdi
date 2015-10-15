@@ -38,14 +38,12 @@
 
 package org.dcm4chee.archive.conf;
 
-import org.dcm4che3.conf.api.AttributeCoercions;
 import org.dcm4che3.conf.api.ConfigurationNotFoundException;
 import org.dcm4che3.conf.api.DicomConfiguration;
 import org.dcm4che3.conf.api.hl7.HL7Configuration;
 import org.dcm4che3.conf.core.api.ConfigurableClassExtension;
 import org.dcm4che3.conf.dicom.CommonDicomConfigurationWithHL7;
 import org.dcm4che3.conf.dicom.DicomConfigurationBuilder;
-import org.dcm4che3.imageio.codec.CompressionRules;
 import org.dcm4che3.net.ApplicationEntity;
 import org.dcm4che3.net.Device;
 import org.dcm4che3.net.ExternalArchiveAEExtension;
@@ -56,8 +54,7 @@ import org.dcm4che3.net.hl7.HL7DeviceExtension;
 import org.dcm4che3.net.imageio.ImageReaderExtension;
 import org.dcm4che3.net.imageio.ImageWriterExtension;
 import org.dcm4che3.net.web.WebServiceAEExtension;
-import org.dcm4chee.archive.conf.defaults.DeepEquals;
-import org.dcm4chee.archive.conf.defaults.DeepEquals.CustomDeepEquals;
+import org.dcm4chee.archive.conf.defaults.test.DeepEquals;
 import org.dcm4chee.archive.conf.defaults.DefaultArchiveConfigurationFactory;
 import org.dcm4chee.archive.conf.defaults.DefaultDicomConfigInitializer;
 import org.dcm4chee.storage.conf.StorageDeviceExtension;
@@ -66,7 +63,6 @@ import org.junit.Test;
 
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Properties;
 
 import static org.junit.Assert.assertTrue;
@@ -146,21 +142,11 @@ public class ArchiveDeviceTest {
 
 
         // register custom deep equals methods
-        DeepEquals.customDeepEquals = new HashMap<Class<?>, CustomDeepEquals>();
-        DeepEquals.customDeepEquals.put(CompressionRules.class, new CustomEquals.CompressionRulesDeepEquals());
-        DeepEquals.customDeepEquals.put(AttributeCoercions.class, new CustomEquals.AttributeCoercionsDeepEquals());
 
         boolean res = DeepEquals.deepEquals(arc, arcLoaded);
 
         if (!res) {
-            System.out.println(DeepEquals.lastClass);
-            System.out.println(DeepEquals.lastDualKey);
-
-            // trace
-            System.out.println("'Path' in the object tree where inequality is located:");
-            for (DeepEquals.DualKey dualKey : DeepEquals.lastDualKey.getTrace()) {
-                System.out.println(dualKey.getFieldName());
-            }
+            DeepEquals.printOutInequality();
         }
 
         assertTrue("Store/read failed for an attribute. See console output.", res);

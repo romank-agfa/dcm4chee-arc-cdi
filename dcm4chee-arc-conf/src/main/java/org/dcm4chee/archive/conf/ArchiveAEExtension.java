@@ -271,9 +271,7 @@ public class ArchiveAEExtension extends AEExtension {
     }
 
     public void setCompressionRules(CompressionRules rules) {
-        compressionRules.clear();
-        if (rules != null)
-            compressionRules.add(rules);
+        compressionRules = rules;
     }
 
     public boolean removeCompressionRule(CompressionRule ac) {
