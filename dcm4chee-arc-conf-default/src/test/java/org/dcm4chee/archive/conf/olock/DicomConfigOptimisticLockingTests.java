@@ -4,11 +4,12 @@ import org.dcm4che3.conf.core.api.ConfigurableClassExtension;
 import org.dcm4che3.conf.core.api.Configuration;
 import org.dcm4che3.conf.core.api.OptimisticLockException;
 import org.dcm4che3.conf.core.normalization.DefaultsAndNullFilterDecorator;
-import org.dcm4che3.conf.core.olock.OptimisticLockingConfiguration;
+import org.dcm4che3.conf.core.olock.HashBasedOptimisticLockingConfiguration;
 import org.dcm4che3.conf.core.storage.InMemoryConfiguration;
 import org.dcm4che3.conf.core.util.Extensions;
 import org.dcm4che3.conf.dicom.CommonDicomConfigurationWithHL7;
 import org.dcm4che3.net.Device;
+import org.dcm4che3.net.audit.AuditLogger;
 import org.dcm4chee.archive.conf.ArchiveAEExtension;
 import org.dcm4chee.archive.conf.ArchiveDeviceTest;
 import org.dcm4chee.archive.conf.defaults.DefaultArchiveConfigurationFactory.FactoryParams;
@@ -33,20 +34,24 @@ public class DicomConfigOptimisticLockingTests {
     public void before() {
 
         // prepare storage
+        ArrayList<ConfigurableClassExtension> defaultExtensions = ArchiveDeviceTest.getDefaultExtensions();
+        defaultExtensions.add(new OlockedDeviceExtension());
+
         ArrayList<Class> allExtensionClasses = new ArrayList<Class>();
-        for (ConfigurableClassExtension extension : ArchiveDeviceTest.getDefaultExtensions())
+
+        for (ConfigurableClassExtension extension : defaultExtensions)
             allExtensionClasses.add(extension.getClass());
 
 //        Configuration storage = new SingleJsonFileConfigurationStorage("target/config.json");
         Configuration storage = new InMemoryConfiguration();
 
-        storage = new OptimisticLockingConfiguration(storage, allExtensionClasses, storage);
+        storage = new HashBasedOptimisticLockingConfiguration(storage, allExtensionClasses, storage);
 
         storage = new DefaultsAndNullFilterDecorator(storage, allExtensionClasses);
 
         dicomConfig = new CommonDicomConfigurationWithHL7(
                 storage,
-                Extensions.getAMapOfExtensionsByBaseExtension(ArchiveDeviceTest.getDefaultExtensions())
+                Extensions.getAMapOfExtensionsByBaseExtension(defaultExtensions)
         );
 
 
@@ -133,12 +138,193 @@ public class DicomConfigOptimisticLockingTests {
 
 
     @Test
-    public void testBiggerChanges() {
+    public void renameAEtest() {
 
-        // what if there are bigger changes and how merge works then
+        // rename AE
+
+        Device device1 = dicomConfig.findDevice("dcm4chee-arc");
+
+        device1.getApplicationEntity("DCM4CHEE").setAETitle("DCM4CHEE-NEW");
+
+        dicomConfig.merge(device1);
+
+        Device loaded = dicomConfig.findDevice("dcm4chee-arc");
+
+        Assert.assertEquals(4, loaded.getApplicationAETitles().size());
+        Assert.assertNotEquals(null, loaded.getApplicationEntity("DCM4CHEE-NEW"));
+        Assert.assertEquals(null, loaded.getApplicationEntity("DCM4CHEE"));
+
+    }
+
+
+    @Test
+    public void renameAEconcurrentModTest() {
+
+        // rename AE with concurrent change in that AE
+
+        Device device1 = dicomConfig.findDevice("dcm4chee-arc");
+        Device device2 = dicomConfig.findDevice("dcm4chee-arc");
+
+        device1.getApplicationEntity("DCM4CHEE").setAETitle("DCM4CHEE-NEW");
+
+        dicomConfig.merge(device1);
+
+
+        device2.getApplicationEntity("DCM4CHEE").setDescription("A new descr");
+        dicomConfig.merge(device2);
+
+
+        Device loaded = dicomConfig.findDevice("dcm4chee-arc");
+        loaded.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        device1.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        loaded.setOlockHash(null);
+        device1.setOlockHash(null);
+        boolean b = DeepEquals.deepEquals(loaded, device1);
+        if (!b) DeepEquals.printOutInequality();
+        Assert.assertTrue("Changes in device2 should be ignored, nothing should change", b);
+
+        // now first make change, then rename AE
+
+        before();
+
+        device1 = dicomConfig.findDevice("dcm4chee-arc");
+        device2 = dicomConfig.findDevice("dcm4chee-arc");
+
+
+        device2.getApplicationEntity("DCM4CHEE").setDescription("A new descr");
+        dicomConfig.merge(device2);
+
+        device1.getApplicationEntity("DCM4CHEE").setAETitle("DCM4CHEE-NEW");
+        dicomConfig.merge(device1);
+
+
+        loaded = dicomConfig.findDevice("dcm4chee-arc");
+        loaded.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        device1.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        loaded.setOlockHash(null);
+        device1.setOlockHash(null);
+        b = DeepEquals.deepEquals(loaded, device1);
+        if (!b) DeepEquals.printOutInequality();
+        Assert.assertTrue("Changes in device2 should be ignored, nothing should change", b);
+
+    }
+
+    @Test
+    public void doubleRenameAETest() {
+        // rename AE with concurrent change in that AE
+
+        Device device1 = dicomConfig.findDevice("dcm4chee-arc");
+        Device device2 = dicomConfig.findDevice("dcm4chee-arc");
+
+        device1.getApplicationEntity("DCM4CHEE").setAETitle("DCM4CHEE-NEW");
+
+        dicomConfig.merge(device1);
+
+
+        device2.getApplicationEntity("DCM4CHEE").setAETitle("DCM4CHEE-NEW-BUT-DIFF");
+
+
+        try {
+            dicomConfig.merge(device2);
+            Assert.fail();
+        } catch (OptimisticLockException ignored) {
+        }
+
+
+        Device loaded = dicomConfig.findDevice("dcm4chee-arc");
+        loaded.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        device1.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        loaded.setOlockHash(null);
+        device1.setOlockHash(null);
+        boolean b = DeepEquals.deepEquals(loaded, device1);
+        if (!b) DeepEquals.printOutInequality();
+        Assert.assertTrue("State in the storage should be eq to device1", b);
+
+
+    }
+
+    @Test
+    public void renameAEAndConcurrentlyModifyOtherAE() {
+
+        // rename AE with concurrent change in that AE
+
+        Device device1 = dicomConfig.findDevice("dcm4chee-arc");
+        Device device2 = dicomConfig.findDevice("dcm4chee-arc");
+
+        device1.getApplicationEntity("DCM4CHEE").setAETitle("DCM4CHEE-NEW");
+
+        dicomConfig.merge(device1);
+
+
+        device2.getApplicationEntity("DCM4CHEE_TRASH").setDescription("A new descr");
+        dicomConfig.merge(device2);
+
+
+        Device loaded = dicomConfig.findDevice("dcm4chee-arc");
+
+
+        Assert.assertNotEquals("both changes should make it", null, loaded.getApplicationEntity("DCM4CHEE-NEW"));
+        Assert.assertEquals("both changes should make it", "A new descr", loaded.getApplicationEntity("DCM4CHEE_TRASH").getDescription());
+
+
+        loaded.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        device1.getApplicationEntity("DCM4CHEE-NEW").setOlockHash(null);
+        loaded.getApplicationEntity("DCM4CHEE_TRASH").setOlockHash(null);
+        device1.getApplicationEntity("DCM4CHEE_TRASH").setOlockHash(null);
+        loaded.getApplicationEntity("DCM4CHEE_TRASH").setDescription(null);
+        loaded.setOlockHash(null);
+        device1.setOlockHash(null);
+        boolean b = DeepEquals.deepEquals(loaded, device1);
+        if (!b) DeepEquals.printOutInequality();
+        Assert.assertTrue("nothing else should change", b);
+
+        // now first make change, then rename AE
+
+    }
+
+    public void extensionsTest() {
+
+        Device device1 = dicomConfig.findDevice("dcm4chee-arc");
+        Device device2 = dicomConfig.findDevice("dcm4chee-arc");
+
+
+
+
+    }
+
+    @Test
+    public void oneModifiesConnectionAnotherRemovesApreviousConnection() {
+
+        Device device1 = dicomConfig.findDevice("dcm4chee-arc");
+        Device device2 = dicomConfig.findDevice("dcm4chee-arc");
+
+
+        device1.getConnections().remove(0);
+        device1.getDeviceExtension(AuditLogger.class).getConnections().clear();
+        dicomConfig.merge(device1);
+
+        //device2.getConnections().get(1).setSocketCloseDelay(12345);
+//        dicomConfig.merge(device2);
+
+
+        Device loaded = dicomConfig.findDevice("dcm4chee-arc");
+        loaded.setOlockHash(null);
+        device1.setOlockHash(null);
+        boolean b = DeepEquals.deepEquals(loaded, device1);
+        if (!b) DeepEquals.printOutInequality();
+        Assert.assertTrue(b);
+
+
+    }
+
+        // add 2 AEs
+
+        // add 2 AEs with concurrent changes in other AEs
+
+        // remove 2 AEs
+
 
         // eg some items added, some deleted from the list
-    }
 
 
     @Test

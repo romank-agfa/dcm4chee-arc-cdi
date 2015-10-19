@@ -95,7 +95,6 @@ public class ArchiveDeviceTest {
 
         CommonDicomConfigurationWithHL7 configWithHL7 = builder
                 .cache(true)
-                .persistDefaults(false)
                 .build();
         config = configWithHL7;
         hl7Config = configWithHL7;
