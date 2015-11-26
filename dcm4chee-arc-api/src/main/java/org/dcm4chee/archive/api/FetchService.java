@@ -40,6 +40,7 @@ package org.dcm4chee.archive.api;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Future;
 
 /**
@@ -53,26 +54,94 @@ public interface FetchService {
 
     /**
      * Asynchronously retrieve a study, regardless of where it is located.
-     * @param Study instance UID
+     * @param studyUID instance UID
      * @return A future that will be fulfilled when the retrieve is complete.
      * The string value of the future will be the requested studyUID.
      */
-    public Future<String> fetchStudyAsync(String studyUID) throws IOException;
+    FetchProgress fetchStudyAsync(String studyUID);
 
     /**
      * Asynchronously retrieve a series, regardless of where it is located.
-     * @param Series instance UID
+     * @param seriesUID instance UID
      * @return A future that will be fulfilled when the retrieve is complete.
      * The string value of the future will be the requested seriesUID.
      */
-    public Future<String> fetchSeriesAsync(String seriesUID) throws IOException;
+    FetchProgress fetchSeriesAsync(String seriesUID) throws IOException;
 
     /**
      * Asynchronously retrieve an instance, regardless of where it is located.
-     * @param SOP instance UID
+     * @param sopIUID instance UID
      * @return A future that will be fulfilled when the retrieve is complete. The future will then contain
      * the Path value for where the instance can be accessed.
      */
-    public Future<Path> fetchInstanceAsync(String sopIUID) throws IOException;
-    
+    Future<Path> fetchInstanceAsync(String sopIUID) throws IOException;
+
+
+    /**
+     * Provides means to control the fetch process, such as checking the progress, registering listeners, or cancelling the whole operation
+     */
+    interface FetchProgress {
+
+        /**
+         * @return The future for this whole fetch procedure.
+         */
+        Future<FetchProgress> getFuture();
+
+        FetchStatus getStatus();
+
+        /**
+         * Aborts the whole fetch operation.
+         * After this method is invoked, the following applies:
+         * <ul>
+         *     <li>Status is set to {@link FetchStatus#CANCELLED}</li>
+         *     <li>The future (see {@link #getFuture()}) will be completed.</li>
+         *     <li>Some listeners might still be called</li>
+         * </ul>
+         *
+         * Equivalent to calling getFuture.cancel(true)
+         */
+        void abort();
+
+
+        /**
+         * Register a callback to handle intermediate results
+         * @param handler user-defined callback
+         */
+        //void addListener(ArrivalHandler handler);
+
+    }
+
+    enum FetchStatus {
+        IN_PROGRESS,
+        CANCELLED,
+        FAIL,
+        SUCCESS
+    }
+
+//    maybe impl in future
+//
+//    class ArrivalHandler {
+//
+//        /**
+//         * Called when the instance is available on a storage system
+//         * @param overallProgress Progress of the ongoing fetch operation
+//         */
+//        void onInstanceAvailable(String iuid, FetchProgress overallProgress) {}
+//
+//        /**
+//         * Called when the whole series are available on a storage system
+//         * @param overallProgress Progress of the ongoing fetch operation
+//         */
+//        void onSeriesAvailable(String seriesUuid, FetchProgress overallProgress) {}
+//
+//
+//        /**
+//         * Called when the whole study is available on a storage system.
+//         * This handler is invoked right before the future (see {@link FetchProgress#getFuture()}) completes.
+//         * @param overallProgress Progress of the ongoing fetch operation
+//         */
+//        void onStudyAvailable(String studyUid, FetchProgress overallProgress) {}
+//    }
+
+
 }
