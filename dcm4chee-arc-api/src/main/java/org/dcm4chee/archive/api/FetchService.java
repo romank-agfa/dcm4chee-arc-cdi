@@ -93,7 +93,16 @@ public interface FetchService {
 
     }
 
-    interface FetchResult {
-        String getStudyUID();
+    class FetchResult {
+
+        String studyUID;
+
+        public FetchResult(String studyUID) {
+            this.studyUID = studyUID;
+        }
+
+        public String getStudyUID() {
+            return studyUID;
+        }
     }
 }

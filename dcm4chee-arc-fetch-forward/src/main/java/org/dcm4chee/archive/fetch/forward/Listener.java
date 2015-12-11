@@ -40,58 +40,16 @@
 
 package org.dcm4chee.archive.fetch.forward;
 
-import org.dcm4che3.net.Device;
-import org.dcm4chee.archive.api.FetchService;
+import org.infinispan.notifications.cachelistener.annotation.CacheEntryModified;
 
-import javax.ejb.EJB;
-import javax.ejb.Stateless;
-import javax.inject.Inject;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.concurrent.Future;
+import java.lang.annotation.Annotation;
 
 /**
- * Rationale:
- * Fetch is preferably done on series level, due to
- * - not all support instance level cmove
- * - on study level it could be too much at once and is more error prone
- *
- * Then it falls back to study level.
- *
- * Once an instance or series is requested, the whole study is fetched implicitly in the background.
- *
+ * @author Roman K
  */
-@EJB(name = FetchService.JNDI_NAME, beanInterface = FetchService.class)
-@Stateless
-public class AsyncFetchServiceBean implements FetchService {
+public class Listener {
 
-
-    @Inject
-    Device device;
-
-    @Override
-    public FetchProgress fetchStudyAsync(String studyUID) {
-
-        // handle not existent
-        // handle already available
-
-        throw new RuntimeException("not implemented");
-    }
-
-    @Override
-    public FetchProgress fetchSeriesAsync(String seriesUID) {
-
-        // handle not existent
-        // handle already available
-        throw new RuntimeException("not implemented");
-    }
-
-    @Override
-    public Future<Path> fetchInstanceAsync(String sopIUID) {
-
-        // handle not existent
-        // handle already available
-
-        throw new RuntimeException("not implemented");
+    public void dosmth(org.infinispan.notifications.cachelistener.event.CacheEntryModifiedEvent event ){
+        event.getCache().getName();
     }
 }

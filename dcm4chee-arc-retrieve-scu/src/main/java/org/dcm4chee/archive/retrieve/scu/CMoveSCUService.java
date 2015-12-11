@@ -38,26 +38,38 @@
 
 package org.dcm4chee.archive.retrieve.scu;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.List;
 
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.net.ApplicationEntity;
 import org.dcm4che3.net.DimseRSPHandler;
+import org.dcm4che3.net.IncompatibleConnectionException;
 import org.dcm4chee.archive.retrieve.scu.CMoveSCU.CmoveReturnState;
 
 /**
  * @author Hesham Elbadawi <bsdreko@gmail.com>
- *
  */
 public interface CMoveSCUService {
 
-    CmoveReturnState cmove(ApplicationEntity localAE, ApplicationEntity remoteAE,
-            Attributes keys, final DimseRSPHandler handler, String destinationAET, final int instancesToMove, 
-            boolean relational);
+    CmoveReturnState cmove(ApplicationEntity localAE,
+                           ApplicationEntity remoteAE,
+                           Attributes keys,
+                           final DimseRSPHandler handler,
+                           String destinationAET,
+                           boolean relational) throws IOException, InterruptedException, GeneralSecurityException, IncompatibleConnectionException;
 
     CmoveReturnState moveStudy(ApplicationEntity localAE,
-            String studyInstanceUID, int instancesInStudy,
-            DimseRSPHandler handler, List<ApplicationEntity> possibleLocations,
-            String destination);
+                               String studyInstanceUID,
+                               int instancesInStudy,
+                               DimseRSPHandler handler,
+                               List<ApplicationEntity> possibleLocations,
+                               String destination) throws InterruptedException, GeneralSecurityException, IncompatibleConnectionException, IOException;
 
+    CmoveReturnState moveStudy(String studyInstanceUID,
+                               ApplicationEntity localAE,
+                               ApplicationEntity remoteAE,
+                               DimseRSPHandler handler,
+                               String destinationAETitle) throws InterruptedException, GeneralSecurityException, IncompatibleConnectionException, IOException;
 }
