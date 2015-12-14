@@ -44,12 +44,10 @@ import org.dcm4che3.net.Device;
 import org.dcm4chee.archive.api.FetchService;
 import org.dcm4chee.cache.Cache;
 import org.dcm4chee.cache.CacheByName;
-import org.infinispan.util.concurrent.BaseNotifyingFuture;
 
 import javax.ejb.EJB;
 import javax.ejb.Stateless;
 import javax.inject.Inject;
-import javax.inject.Named;
 import java.nio.file.Path;
 import java.util.concurrent.*;
 
@@ -58,11 +56,10 @@ import java.util.concurrent.*;
  * Fetch is preferably done on series level, due to
  * - not all support instance level cmove
  * - on study level it could be too much at once and is more error prone
- *
+ * <p/>
  * Then it falls back to study level.
- *
+ * <p/>
  * Once an instance or series is requested, the whole study is fetched implicitly in the background.
- *
  */
 @EJB(name = FetchService.JNDI_NAME, beanInterface = FetchService.class)
 @Stateless
@@ -73,7 +70,7 @@ public class AsyncFetchServiceBean implements FetchService {
 
     @Inject
     @CacheByName("fetch-forward")
-    private Cache<String,String> ffCache;
+    private Cache<String, String> ffCache;
 
     @Inject
     AsyncFetchPrivateEJB fetchPrivateEJB;
@@ -82,22 +79,18 @@ public class AsyncFetchServiceBean implements FetchService {
     public FetchProgress fetchStudyAsync(final String studyUID) {
 
 
-        // handle not existent
-        // handle already available
+        final FutureTask<FetchResult> fetchResultFuture = new FutureTask<FetchResult>(new FetchResultCallable(studyUID));
 
 
-        new FetchFuture();
+        device.getExecutor().execute(fetchResultFuture);
 
 
         return new FetchProgress() {
             @Override
             public Future<FetchResult> getFuture() {
-                return fetchPrivateEJB.moveStudyInAsync(studyUID);
+                return fetchResultFuture;
             }
         };
-
-//        ffCache.put("13", "24");
-
     }
 
     @Override
@@ -117,34 +110,43 @@ public class AsyncFetchServiceBean implements FetchService {
         throw new RuntimeException("not implemented");
     }
 
-    private static class FetchFuture implements Future<FetchResult> {
 
 
-        private boolean done;
-        private boolean cancelled;
 
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            return false;
+    private static class FetchFuture extends FutureTask<FetchResult> {
+
+
+        public FetchFuture(Callable<FetchResult> callable) {
+            super(callable);
+        }
+    }
+
+    private class FetchResultCallable implements Callable<FetchResult> {
+        private final String studyUID;
+
+        public FetchResultCallable(String studyUID) {
+            this.studyUID = studyUID;
         }
 
         @Override
-        public boolean isCancelled() {
-            return cancelled;
-        }
+        public FetchResult call() throws Exception {
 
-        @Override
-        public boolean isDone() {
-            return done;
-        }
+            // handle not existent
 
-        @Override
-        public FetchResult get() throws InterruptedException, ExecutionException {
-            return null;
-        }
 
-        @Override
-        public FetchResult get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+            while (true) {
+
+                // if already available - return
+
+                // try to insert a value into the sync'ed map
+
+                // if success -
+                fetchPrivateEJB.moveStudyInAsync(studyUID);
+
+
+            }
+
+
             return null;
         }
     }

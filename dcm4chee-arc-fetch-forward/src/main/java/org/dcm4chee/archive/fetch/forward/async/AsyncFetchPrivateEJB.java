@@ -75,7 +75,11 @@ public class  AsyncFetchPrivateEJB {
     @Asynchronous
     @TransactionAttribute(TransactionAttributeType.NOT_SUPPORTED)
     public Future<FetchService.FetchResult> moveStudyInAsync(String studyUID) {
-        moveStudyIn(studyUID);
+        try {
+            moveStudyIn(studyUID);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return new AsyncResult<>(new FetchService.FetchResult(studyUID));
     }
 

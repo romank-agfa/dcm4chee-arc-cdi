@@ -443,6 +443,13 @@
         <version>${hibernate.version}</version>
         <scope>provided</scope>
       </dependency>
+      <!-- comes bundled with EAP 6 -->
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>13.0.1</version>
+        <scope>provided</scope>
+      </dependency>
       <dependency>
         <groupId>org.jboss.spec</groupId>
         <artifactId>jboss-javaee-6.0</artifactId>
@@ -462,7 +469,7 @@
         <version>2.5.0</version>
         <scope>test</scope>
       </dependency>
-       <!-- Required by jboss-javaee-6.0:3.0.2.Final (https://issues.jboss.org/browse/JBBUILD-708) --> 
+       <!-- Required by jboss-javaee-6.0:3.0.2.Final (https://issues.jboss.org/browse/JBBUILD-708) -->
       <dependency>
         <groupId>xalan</groupId>
         <artifactId>xalan</artifactId>
