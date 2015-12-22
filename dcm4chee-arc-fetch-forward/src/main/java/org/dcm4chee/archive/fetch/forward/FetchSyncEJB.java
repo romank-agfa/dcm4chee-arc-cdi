@@ -38,11 +38,10 @@
  *  ***** END LICENSE BLOCK *****
  */
 
-package org.dcm4chee.archive.fetch.forward.async;
+package org.dcm4chee.archive.fetch.forward;
 
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.*;
-import org.dcm4chee.archive.api.FetchService;
 import org.dcm4chee.archive.conf.ArchiveDeviceExtension;
 import org.dcm4chee.archive.retrieve.scu.CMoveSCUService;
 import org.slf4j.Logger;
@@ -53,15 +52,14 @@ import javax.inject.Inject;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.*;
-import java.util.concurrent.Future;
 
 /**
  * @author Roman K
  */
 @Stateless
-public class  AsyncFetchPrivateEJB {
+public class FetchSyncEJB {
 
-    Logger log = LoggerFactory.getLogger(AsyncFetchPrivateEJB.class);
+    Logger log = LoggerFactory.getLogger(FetchSyncEJB.class);
 
 
     @Inject
@@ -70,20 +68,19 @@ public class  AsyncFetchPrivateEJB {
     @Inject
     Device device;
 
-
-
-    @Asynchronous
-    @TransactionAttribute(TransactionAttributeType.NOT_SUPPORTED)
-    public Future<FetchService.FetchResult> moveStudyInAsync(String studyUID) {
-        try {
-            moveStudyIn(studyUID);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return new AsyncResult<>(new FetchService.FetchResult(studyUID));
+    /**
+     * Handles fetching no matter where study is located
+     * - does not coordinate parallel requests (this should be handled by the callers), i.e. will launch fetching even if another fetch for this study is in progress
+     * - can take a while (minutes, even hours), beware of timeouts as a caller
+     * @param studyUID
+     */
+    public void fetchStudy(String studyUID) {
+        moveStudyFromExtSys(studyUID);
     }
 
-    public void moveStudyIn(String studyUID) {
+
+
+    public void moveStudyFromExtSys(String studyUID) {
 
         // calculate devicesToFetch - from ExternalRetrieveLocation
         List<Device> devicesToFetchFrom = new ArrayList<>();
@@ -106,7 +103,7 @@ public class  AsyncFetchPrivateEJB {
             while (extAEiterator.hasNext()) {
                 ApplicationEntity chosenAE = extAEiterator.next();
 
-                // do cmove towards chosen AE
+                // perform cmove towards the chosen AE
                 try {
                     cMoveSCUService.moveStudy(
                             studyUID,
@@ -146,11 +143,10 @@ public class  AsyncFetchPrivateEJB {
 
     /**
      * @return true if all instances of a study are available locally,
-     * i.e. there are no more instances available on ext devices but not locally
      *
      * @param studyUID
      */
-    private boolean isWholeStudyFetched(String studyUID) {
+    public boolean isWholeStudyFetched(String studyUID) {
         //TODO
         return false;
     }

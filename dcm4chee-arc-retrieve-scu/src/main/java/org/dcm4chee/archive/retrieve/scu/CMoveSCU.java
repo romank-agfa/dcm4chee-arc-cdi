@@ -54,6 +54,8 @@ import org.dcm4che3.net.pdu.ExtendedNegotiation;
 import org.dcm4che3.net.pdu.PresentationContext;
 
 /**
+ * Always uses {@link UID#StudyRootQueryRetrieveInformationModelMOVE} cuid (StudyRoot)
+ *
  * @author Hesham Elbadawi <bsdreko@gmail.com>
  *
  */

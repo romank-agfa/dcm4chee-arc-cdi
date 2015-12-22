@@ -42,6 +42,7 @@ package org.dcm4chee.archive.fetch.forward.async;
 
 import org.dcm4che3.net.Device;
 import org.dcm4chee.archive.api.FetchService;
+import org.dcm4chee.archive.fetch.forward.FetchSyncEJB;
 import org.dcm4chee.cache.Cache;
 import org.dcm4chee.cache.CacheByName;
 
@@ -73,7 +74,7 @@ public class AsyncFetchServiceBean implements FetchService {
     private Cache<String, String> ffCache;
 
     @Inject
-    AsyncFetchPrivateEJB fetchPrivateEJB;
+    FetchSyncEJB fetchPrivateEJB;
 
     @Override
     public FetchProgress fetchStudyAsync(final String studyUID) {
@@ -137,12 +138,16 @@ public class AsyncFetchServiceBean implements FetchService {
             while (true) {
 
                 // if already available - return
+                if (fetchPrivateEJB.isWholeStudyFetched(studyUID)) {
+                    return new FetchResult(studyUID);
+                }
 
                 // try to insert a value into the sync'ed map
 
-                // if success -
-                fetchPrivateEJB.moveStudyInAsync(studyUID);
+                // if success
+                fetchPrivateEJB.fetchStudy(studyUID);
 
+                break;
 
             }
 
